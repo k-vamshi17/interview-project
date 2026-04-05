@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Sparkles, Activity } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
@@ -22,86 +22,86 @@ const Login = () => {
     setTimeout(() => {
       setLoading(false);
       localStorage.setItem("interviewai_user", JSON.stringify({ email, name: name || email.split("@")[0] }));
-      toast({ title: isSignUp ? "Account provisioned" : "Authentication successful" });
+      toast({ title: isSignUp ? "Account created successfully" : "Welcome back!" });
       navigate("/dashboard");
     }, 800);
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-foreground flex md:items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex md:items-center justify-center p-4 relative overflow-hidden font-sans">
       
       {/* Background decorations */}
-      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[400px] h-[400px] bg-purple-900/20 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-indigo-100/60 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[400px] h-[400px] bg-slate-200/60 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="w-full max-w-5xl md:grid md:grid-cols-2 gap-8 items-center z-10 pt-10 md:pt-0">
+      <div className="w-full max-w-5xl md:grid md:grid-cols-2 gap-12 items-center z-10 pt-10 md:pt-0">
         
         {/* Visual Panel */}
-        <div className="hidden md:flex flex-col justify-between h-full p-8 rounded-3xl border border-white/5 bg-white/[0.02] backdrop-blur-md relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-50" />
+        <div className="hidden md:flex flex-col justify-between h-full p-10 rounded-3xl border border-slate-200 bg-white shadow-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(79,70,229,0.05)_0%,transparent_60%)]" />
           <div className="relative z-10 flex items-center gap-2 mb-12">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <span className="font-bold tracking-tighter text-white text-xl">Interview<span className="text-primary">Ace</span></span>
+            <ShieldCheck className="h-6 w-6 text-indigo-600" />
+            <span className="font-bold tracking-tighter text-slate-900 text-2xl">Interview<span className="text-indigo-600">Ace</span></span>
           </div>
           
           <div className="relative z-10 space-y-6">
-            <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
-              Access the Assessment Framework
+            <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">
+              Welcome to InterviewAce
             </h2>
-            <p className="text-muted-foreground leading-relaxed">
-              Authenticate to initialize your sandbox environment and configure hardware telemetry. The AI evaluation engine is standing by.
+            <p className="text-slate-600 leading-relaxed font-medium text-lg">
+              Sign in to practice your interviews, review your AI feedback, and track your progress over time.
             </p>
-            <div className="flex items-center gap-3 pt-6">
+            <div className="flex items-center gap-3 pt-6 border-t border-slate-100 mt-6">
               <span className="relative flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
               </span>
-              <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Nodes Online</span>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">All systems ready</span>
             </div>
           </div>
         </div>
 
         {/* Form Panel */}
         <div className="w-full max-w-sm mx-auto animate-fade-up">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-white transition-colors mb-10 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 hover:bg-white/10">
-            <ArrowLeft className="h-4 w-4" /> Return to Terminal
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors mb-10 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:shadow">
+            <ArrowLeft className="h-4 w-4" /> Back to Home
           </Link>
 
-          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
-            {isSignUp ? "Initialize Profile" : "System Login"}
+          <h1 className="text-3xl font-extrabold text-slate-900 mb-2 tracking-tight">
+            {isSignUp ? "Create an Account" : "Sign In"}
           </h1>
-          <p className="text-sm text-muted-foreground mb-8">
-            {isSignUp ? "Configure a new candidate profile to continue." : "Enter your credentials to access the console."}
+          <p className="text-sm font-medium text-slate-500 mb-8">
+            {isSignUp ? "Sign up to start practicing right away." : "Welcome back! Please enter your details."}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {isSignUp && (
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-xs uppercase text-muted-foreground tracking-wider font-semibold">Candidate ID (Full Name)</Label>
+                <Label htmlFor="name" className="text-xs uppercase text-slate-500 tracking-widest font-bold">Full Name</Label>
                 <Input 
                   id="name" 
                   value={name} 
                   onChange={(e) => setName(e.target.value)} 
-                  placeholder="John Doe" 
+                  placeholder="Jane Smith" 
                   required 
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/20 h-12"
+                  className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 h-12 shadow-sm focus-visible:ring-indigo-500"
                 />
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs uppercase text-muted-foreground tracking-wider font-semibold">Transmission Relay (Email)</Label>
+              <Label htmlFor="email" className="text-xs uppercase text-slate-500 tracking-widest font-bold">Email Address</Label>
               <Input 
                 id="email" 
                 type="email" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)} 
-                placeholder="candidate@node.local" 
+                placeholder="you@email.com" 
                 required 
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 h-12"
+                className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 h-12 shadow-sm focus-visible:ring-indigo-500"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs uppercase text-muted-foreground tracking-wider font-semibold">Access Key (Password)</Label>
+              <Label htmlFor="password" className="text-xs uppercase text-slate-500 tracking-widest font-bold">Password</Label>
               <Input 
                 id="password" 
                 type="password" 
@@ -109,22 +109,22 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)} 
                 placeholder="••••••••" 
                 required minLength={6} 
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 h-12 font-mono"
+                className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 h-12 font-mono shadow-sm focus-visible:ring-indigo-500"
               />
             </div>
-            <Button type="submit" className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-medium shadow-[0_0_15px_rgba(124,58,237,0.3)] gap-2 mt-4" disabled={loading}>
+            <Button type="submit" className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-md gap-2 mt-4 transition-all hover:-translate-y-0.5" disabled={loading}>
               {loading ? (
-                <> <Activity className="h-4 w-4 animate-spin" /> Processing... </>
+                <> <Activity className="h-4 w-4 animate-spin" /> Verifying... </>
               ) : (
-                isSignUp ? "Provision Account" : "Authenticate"
+                isSignUp ? "Create Account" : "Sign In"
               )}
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-muted-foreground">
-            {isSignUp ? "Existing clearance?" : "No clearance established?"}{" "}
-            <button onClick={() => setIsSignUp(!isSignUp)} className="text-primary hover:text-white hover:underline transition-colors font-medium">
-              {isSignUp ? "Authenticate here" : "Request access"}
+          <p className="mt-8 text-center text-sm font-medium text-slate-600">
+            {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+            <button onClick={() => setIsSignUp(!isSignUp)} className="text-indigo-600 hover:text-indigo-700 font-bold transition-colors">
+              {isSignUp ? "Sign In" : "Sign Up"}
             </button>
           </p>
         </div>
