@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Mic, MicOff, User, Bot, AlertCircle, PhoneOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import * as faceapi from '@vladmandic/face-api';
 
 type Message = {
   role: 'user' | 'model';
@@ -36,14 +37,44 @@ const MockInterview = () => {
   const [subtitle, setSubtitle] = useState<string>('');
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
   const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [currentExpression, setCurrentExpression] = useState<string>('');
   
   const recognitionRef = useRef<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const transcriptRef = useRef('');
+  const isRecordingRef = useRef(false);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const llmProviderRef = useRef(llmProvider);
+  useEffect(() => {
+    llmProviderRef.current = llmProvider;
+  }, [llmProvider]);
 
   useEffect(() => {
     const stored = localStorage.getItem('interviewai_user');
     if (stored) setUser(JSON.parse(stored));
     else setUser({ name: 'Candidate', email: 'candidate@example.com' });
+
+    // Load FaceAPI Models
+    const loadModels = async () => {
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+        await faceapi.nets.faceExpressionNet.loadFromUri('/models');
+      } catch (e) {
+        console.error("FaceAPI Model loading failed", e);
+      }
+    };
+    loadModels();
 
     // Initialize Speech Recognition
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -58,7 +89,15 @@ const MockInterview = () => {
           currentTranscript += event.results[i][0].transcript;
         }
         setTranscript(currentTranscript);
+        transcriptRef.current = currentTranscript;
         setSubtitle(`You: ${currentTranscript}`);
+
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+            if (isRecordingRef.current) {
+                recognitionRef.current.stop();
+            }
+        }, 6000);
       };
 
       recognitionRef.current.onerror = (event: any) => {
@@ -68,37 +107,73 @@ const MockInterview = () => {
 
       recognitionRef.current.onend = () => {
         setIsRecording(false);
+        if (transcriptRef.current.trim()) {
+            handleSendMessage(); 
+        }
       };
-    }
-
-    // Initialize Camera
-    let activeStream: MediaStream | null = null;
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        .then((stream) => {
-            activeStream = stream;
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                setCameraEnabled(true);
-            }
-        })
-        .catch(err => console.error("Camera access denied or unavilable:", err));
     }
 
     return () => {
       if (recognitionRef.current) recognitionRef.current.stop();
       window.speechSynthesis.cancel();
-      if (activeStream) {
-          activeStream.getTracks().forEach(track => track.stop());
-      }
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
   }, []);
+
+  // Face Expression Tracking Loop
+  useEffect(() => {
+    let expressionInterval: NodeJS.Timeout;
+    if (cameraEnabled && videoRef.current) {
+      expressionInterval = setInterval(async () => {
+         if (videoRef.current && videoRef.current.videoWidth > 0) {
+            try {
+              const detections = await faceapi.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
+              if (detections && detections.expressions) {
+                  const sorted = Object.entries(detections.expressions).sort((a,b) => b[1] - a[1]);
+                  if (sorted[0]) {
+                      setCurrentExpression(sorted[0][0]);
+                  }
+              }
+            } catch (e) {}
+         }
+      }, 500);
+    }
+    return () => {
+       if (expressionInterval) clearInterval(expressionInterval);
+    };
+  }, [cameraEnabled]);
 
 
   const speakText = (text: string) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
+      
+      const voices = window.speechSynthesis.getVoices();
+      const femaleVoice = voices.find(voice => 
+        (voice.lang.startsWith('en') && (
+          voice.name.includes('Female') || 
+          voice.name.includes('Zira') || 
+          voice.name.includes('Samantha') || 
+          voice.name.includes('Victoria') ||
+          voice.name.includes('Google UK English Female') ||
+          voice.name.includes('Google US English')
+        ))
+      );
+      
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+      }
+
+      utterance.onend = () => {
+          try {
+            transcriptRef.current = '';
+            setTranscript('');
+            recognitionRef.current?.start();
+            setIsRecording(true);
+          } catch(e) {}
+      };
+      
       utterance.onstart = () => {
           setSubtitle(`Friday: ${text}`);
       };
@@ -106,15 +181,12 @@ const MockInterview = () => {
     }
   };
 
-  const toggleRecording = () => {
+  const forceToggleRecording = () => {
     if (isRecording) {
       recognitionRef.current?.stop();
       setIsRecording(false);
-      // Slight delay to ensure final transcript chunks process
-      setTimeout(() => {
-          if (transcript.trim()) handleSendMessage(transcript);
-      }, 300);
     } else {
+      transcriptRef.current = '';
       setTranscript('');
       setSubtitle('');
       window.speechSynthesis.cancel();
@@ -130,6 +202,19 @@ const MockInterview = () => {
   const getPersona = () => `Your name is Friday. You are a meticulous, professional female AI technical interviewer for a ${experience} level ${jobRole} position. Do not break character. Ask highly specific, technical questions appropriate for this role and seniority. Start the conversation by warmly welcoming the candidate, introducing yourself as Friday, and immediately asking your first technical question. Once the user replies, evaluate their answer, correct any major mistakes, and follow up with the next question. Keep your responses highly concise.`;
 
   const startConfiguredInterview = async () => {
+      setSetupError(null);
+      let stream: MediaStream | null = null;
+      try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+          }
+          setCameraEnabled(true);
+      } catch (err) {
+          setSetupError("Camera or Microphone is not enabled. Please grant permissions to start the interview.");
+          return;
+      }
+
       setSessionStartTime(Date.now());
       setIsSetupComplete(true);
       setIsLoading(true);
@@ -161,14 +246,16 @@ const MockInterview = () => {
       }
   };
 
-  // We explicitly pass the current captured transcript so we don't accidentally read stale state limits
-  const handleSendMessage = async (finalTranscript: string) => {
+  // We rely on refs inside handleSendMessage since it gets called from event listeners
+  const handleSendMessage = async () => {
+    const finalTranscript = transcriptRef.current;
     if (!finalTranscript.trim()) return;
 
     const userMessage: Message = { role: 'user', text: finalTranscript.trim() };
-    const currentHistory = [...messages];
+    const currentHistory = [...messagesRef.current];
     
     setMessages([...currentHistory, userMessage]);
+    transcriptRef.current = '';
     setTranscript('');
     setIsLoading(true);
     setSubtitle('Friday is thinking...');
@@ -181,7 +268,7 @@ const MockInterview = () => {
           message: userMessage.text,
           history: currentHistory.map(m => ({ role: m.role, text: m.text })),
           persona: getPersona(),
-          llmProvider: llmProvider
+          llmProvider: llmProviderRef.current
         }),
       });
 
@@ -261,6 +348,7 @@ const MockInterview = () => {
                             <option value="grok">Grok 2 (xAI)</option>
                             <option value="gemini">Gemini 2.5 Flash (Google)</option>
                             <option value="openai">ChatGPT (OpenAI)</option>
+                            <option value="groq">Llama 3.1 (Groq)</option>
                         </select>
                     </div>
 
@@ -295,6 +383,12 @@ const MockInterview = () => {
                         </select>
                     </div>
 
+                    {setupError && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+                            <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
+                            <p className="text-sm text-red-600 font-medium">{setupError}</p>
+                        </div>
+                    )}
                     <Button onClick={startConfiguredInterview} className="w-full h-12 mt-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold font-sans shadow-md hover:shadow-lg transition-all active:scale-[0.98]">
                         Begin Voice Interview
                     </Button>
@@ -315,13 +409,20 @@ const MockInterview = () => {
         {/* PIP Camera Overlay */}
         <div className="absolute top-6 right-6 z-30 w-36 sm:w-48 aspect-video bg-black rounded-xl overflow-hidden border-2 border-slate-700 shadow-2xl">
            {cameraEnabled ? (
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted 
-                className="w-full h-full object-cover scale-x-[-1]" 
-              />
+              <>
+                 {currentExpression && (
+                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] sm:text-xs text-white font-bold tracking-wider uppercase z-40 border border-white/20 shadow-sm">
+                       {currentExpression}
+                    </div>
+                 )}
+                 <video 
+                   ref={videoRef} 
+                   autoPlay 
+                   playsInline 
+                   muted 
+                   className="w-full h-full object-cover scale-x-[-1]" 
+                 />
+              </>
            ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-white/50 text-xs bg-slate-800">
                 <User size={24} className="mb-2" />
@@ -382,7 +483,7 @@ const MockInterview = () => {
                  <div className="bg-slate-900/80 backdrop-blur-lg rounded-2xl py-4 px-6 max-w-2xl w-full mx-auto border border-white/10 shadow-2xl max-h-[140px] overflow-y-auto custom-scrollbar">
                       <div className="text-white/95 text-base md:text-lg font-medium tracking-wide drop-shadow-sm leading-relaxed text-left">
                          <ReactMarkdown components={{ p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} /> }}>
-                           {subtitle || 'Click the microphone to start speaking...'}
+                           {subtitle || (isRecording ? 'Listening...' : 'Waiting...')}
                          </ReactMarkdown>
                       </div>
                  </div>
@@ -395,21 +496,23 @@ const MockInterview = () => {
             {/* Main Interaction Button */}
             <div className="flex-1 max-w-md w-full">
               {(window.SpeechRecognition || window.webkitSpeechRecognition) ? (
-                <Button 
-                  onClick={toggleRecording} 
-                  variant={isRecording ? "destructive" : "default"}
-                  className={`h-16 w-full rounded-2xl shadow-xl transition-all duration-300 font-extrabold text-lg md:text-xl tracking-tight ${
+                <div 
+                  className={`h-16 w-full rounded-2xl shadow-xl flex items-center justify-center font-extrabold text-lg md:text-xl tracking-tight relative ${
                       isRecording 
-                      ? 'animate-pulse shadow-red-500/20 bg-red-500 hover:bg-red-600' 
-                      : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20 text-white'
+                      ? 'bg-emerald-500/10 border border-emerald-500 text-emerald-400' 
+                      : 'bg-indigo-500/10 border border-indigo-500 text-indigo-400'
                   }`}
                 >
                   {isRecording ? (
-                     <><MicOff size={28} className="mr-3" /> Stop Recording & Send</>
+                     <><Mic size={28} className="mr-3 animate-pulse" /> Listening...</>
                   ) : (
-                     <><Mic size={28} className="mr-3" /> Press to Speak</>
+                     <><Bot size={28} className="mr-3" /> Friday is thinking...</>
                   )}
-                </Button>
+                  {/* Fallback override button hidden unless absolutely needed */}
+                  <Button size="sm" variant="ghost" className="absolute right-4 opacity-50 hover:opacity-100 hidden md:block" onClick={forceToggleRecording}>
+                    Reset Mic
+                  </Button>
+                </div>
               ) : (
                <div className="p-4 bg-red-900/50 text-red-200 rounded-xl text-center text-sm border border-red-500/50">
                  Browser does not support native Speech Recognition.

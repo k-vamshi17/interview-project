@@ -84,6 +84,20 @@ def chat_endpoint(req: ChatRequest):
             response = client.models.generate_content(model="gemini-2.5-flash", contents=contents)
             return {"response": response.text}
 
+        # Route: GROQ
+        elif req.llmProvider == "groq":
+            api_key = os.getenv("GROQ_API_KEY")
+            if not api_key: raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set.")
+            
+            client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+            messages = [{"role": "system", "content": req.persona}] if req.persona else []
+            for msg in req.history:
+                messages.append({"role": "user" if msg.role == "user" else "assistant", "content": msg.text})
+            messages.append({"role": "user", "content": req.message})
+            
+            response = client.chat.completions.create(model="llama-3.1-8b-instant", messages=messages)
+            return {"response": response.choices[0].message.content}
+
         else:
             raise HTTPException(status_code=400, detail="Invalid LLM Provider specified.")
 
